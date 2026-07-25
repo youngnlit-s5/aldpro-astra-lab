@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 420" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="780" height="420" fill="#f7f9fc"/>
+  <text x="390" y="32" text-anchor="middle" font-size="20" font-weight="700" fill="#1F3864">aldpro-astra-lab — ALD Pro 3.0.0 on Astra Linux Special Edition 1.7.7</text>
+  <text x="390" y="52" text-anchor="middle" font-size="12" fill="#666">libvirt/KVM · isolated NAT network "aldlab" · 192.168.150.0/24 · domain lab.local</text>
+
+  <!-- host -->
+  <rect x="60" y="72" width="660" height="30" rx="6" fill="#eef2f7" stroke="#99a" stroke-width="1"/>
+  <text x="390" y="92" text-anchor="middle" font-size="11" fill="#556">KVM host (homemachine) · virbr-ald 192.168.150.1 (NAT gateway)</text>
+
+  <!-- DC -->
+  <rect x="290" y="120" width="220" height="140" rx="8" fill="#e8f0fe" stroke="#1F3864" stroke-width="2"/>
+  <text x="400" y="146" text-anchor="middle" font-size="15" font-weight="700" fill="#1F3864">ald-dc</text>
+  <text x="400" y="164" text-anchor="middle" font-size="11" fill="#444">Astra Linux SE 1.7.7 · Fly-ssh</text>
+  <text x="400" y="181" text-anchor="middle" font-size="11" fill="#444">security level: Смоленск (max)</text>
+  <text x="400" y="198" text-anchor="middle" font-size="11" fill="#444">FreeIPA DS · KDC · BIND9 · Portal</text>
+  <text x="400" y="215" text-anchor="middle" font-size="11" fill="#444">aldpro-mp / gc / syncer</text>
+  <text x="400" y="238" text-anchor="middle" font-size="10" fill="#777">192.168.150.10 · ald-dc.lab.local</text>
+
+  <!-- client -->
+  <rect x="290" y="300" width="220" height="100" rx="8" fill="#ffffff" stroke="#2E7D32" stroke-width="2"/>
+  <text x="400" y="326" text-anchor="middle" font-size="14" font-weight="700" fill="#2E7D32">ald-cl1</text>
+  <text x="400" y="346" text-anchor="middle" font-size="11" fill="#555">Astra Linux SE · Fly desktop</text>
+  <text x="400" y="364" text-anchor="middle" font-size="11" fill="#555">aldpro-client · sssd · krb5</text>
+  <text x="400" y="384" text-anchor="middle" font-size="10" fill="#777">192.168.150.20 · ald-cl1.lab.local</text>
+
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1F3864"/></marker>
+  </defs>
+  <line x1="400" y1="260" x2="400" y2="298" stroke="#1F3864" stroke-width="2" marker-end="url(#a)"/>
+  <text x="415" y="282" font-size="10" fill="#777">domain join · Kerberos · DNS = 192.168.150.10</text>
+
+  <text x="40" y="414" font-size="11" fill="#999">Portal (web console): https://ald-dc.lab.local · developers / helpdesk OUs · sudo rules per group.</text>
+</svg>

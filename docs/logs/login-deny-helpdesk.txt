@@ -1,0 +1,5 @@
+
+(m.ivanova@192.168.150.20) Password: [REDACTED]
+
+Connection closed by 192.168.150.20 port 22
+

@@ -1,0 +1,21 @@
+
+(i.sredoevich@192.168.150.20) Password: [REDACTED]
+
+Last login: Sat Jul 25 23:41:45 2026 from 192.168.150.1
+
+i.sredoevich@ald-cl1:~$ sudo -l
+sudo -l
+[sudo] password for i.sredoevich: [REDACTED]
+
+Matching Defaults entries for i.sredoevich on ald-cl1:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin,
+    !lecture,
+    secure_path=/usr/lib/parsec/bin\:/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User i.sredoevich may run the following commands on ald-cl1:
+    (root) ALL
+i.sredoevich@ald-cl1:~$ sudo whoami
+sudo whoami
+root
+i.sredoevich@ald-cl1:~$ 

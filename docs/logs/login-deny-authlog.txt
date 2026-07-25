@@ -1,0 +1,7 @@
+Jul 25 23:42:36 ald-cl1 sshd[1472]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=192.168.150.1  user=m.ivanova
+Jul 25 23:42:36 ald-cl1 sshd[1472]: pam_sss(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=192.168.150.1 user=m.ivanova
+Jul 25 23:42:36 ald-cl1 sshd[1472]: pam_sss(sshd:auth): received for user m.ivanova: 12 (Authentication token is no longer valid; new one required)
+Jul 25 23:42:36 ald-cl1 sshd[1472]: pam_sss(sshd:account): Access denied for user m.ivanova: 6 (Permission denied)
+Jul 25 23:42:36 ald-cl1 sshd[1470]: error: PAM: User account has expired for m.ivanova from 192.168.150.1
+Jul 25 23:42:48 ald-cl1 sudo[1498]: labadmin : TTY=unknown ; PWD=/home/labadmin ; USER=root ; COMMAND=/usr/bin/grep -i ivanova\\|hbac /var/log/sssd/sssd_pam.log
+Jul 25 23:42:48 ald-cl1 sudo[1501]: labadmin : TTY=unknown ; PWD=/home/labadmin ; USER=root ; COMMAND=/usr/bin/grep ivanova /var/log/auth.log

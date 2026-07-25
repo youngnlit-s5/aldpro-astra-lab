@@ -1,0 +1,25 @@
+
+(i.sredoevich@192.168.150.20) Password: [REDACTED]
+
+
+(i.sredoevich@192.168.150.20) Password expired. Change your password now.
+Current Password: [REDACTED]
+
+
+(i.sredoevich@192.168.150.20) New password: [REDACTED]
+
+
+(i.sredoevich@192.168.150.20) Retype new password: [REDACTED]
+
+Creating directory '/home/i.sredoevich'.
+i.sredoevich@ald-cl1:~$ id; klist; sudo -n -l
+id; klist; sudo -n -l
+uid=1530200006(i.sredoevich) gid=1530200006(i.sredoevich) groups=1530200006(i.sredoevich),1530200004(developers)
+Ticket cache: KEYRING:persistent:1530200006:krb_ccache_TLLKxtS
+Default principal: i.sredoevich@LAB.LOCAL
+
+Valid starting       Expires              Service principal
+07/25/2026 23:41:19  07/26/2026 23:06:27  ldap/ald-dc.lab.local@LAB.LOCAL
+07/25/2026 23:41:18  07/26/2026 23:06:27  krbtgt/LAB.LOCAL@LAB.LOCAL
+sudo: a password is required
+i.sredoevich@ald-cl1:~$ 

@@ -1,0 +1,11 @@
+# Licensed / large distribution media -- never committed
+*.iso
+*.qcow2
+*.img
+
+# ALD Pro / Astra admin documentation (proprietary, not for redistribution)
+Administrator_Docs*.pdf
+
+# Real lab credentials
+*.env
+credentials*

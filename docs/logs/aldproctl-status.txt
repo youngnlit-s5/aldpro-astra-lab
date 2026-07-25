@@ -1,0 +1,18 @@
+.....Сервисы ALD Pro.....
+Сервис aldpro-mp-services: ЗАПУЩЕН
+Сервис globalcatalog: ЗАПУЩЕН
+Сервис ipa-gcsyncd: ЗАПУЩЕН
+.....Сервисы FreeIPA.....
+Сервис Directory Service: ЗАПУЩЕН
+Сервис krb5kdc: ЗАПУЩЕН
+Сервис kadmin: ЗАПУЩЕН
+Сервис named: ЗАПУЩЕН
+Сервис httpd: ЗАПУЩЕН
+Сервис ipa-custodia: ЗАПУЩЕН
+Сервис smb: ЗАПУЩЕН
+Сервис winbind: ЗАПУЩЕН
+Сервис ipa-otpd: ЗАПУЩЕН
+Сервис ipa-dnskeysyncd: ЗАПУЩЕН
+.....Другие сервисы.....
+Сервис celery: ЗАПУЩЕН
+Сервис celerybeat: ЗАПУЩЕН
