@@ -6,12 +6,12 @@ client machine joined to the domain, domain users, groups, sudo and HBAC rules a
 provisioned and *proven working*, not just installed. That two-VM proof of concept is
 documented below and is what's actually deployed and screenshotted today.
 
-The project's second phase — an [org design for a simulated ~200-user, ~150-machine
-company](#scaling-up-a-simulated-200-user-enterprise) running the same stack — is
-further down this document. It builds on the exact same domain and the same lessons
-learned in the [deployment log](#deployment-log), scaled up to the size where group
-policy, tiered support, and departmental access rules actually have to hold up under
-real organizational politics.
+The project's second phase — the [org structure for a ~200-user, ~150-machine
+company](#scaling-up-a-200-user-enterprise) running the same stack — is further down
+this document. It builds on the exact same domain and the same lessons learned in the
+[deployment log](#deployment-log), scaled up to the size where group policy, tiered
+support, and departmental access rules actually have to hold up under real
+organizational politics.
 
 This is the production counterpart to [`freeipa-lab`](https://github.com/youngnlit-s5/freeipa-lab):
 that repo is the open-source twin built on FreeIPA; this one is the actual commercial
@@ -370,29 +370,26 @@ copied from the documentation.
 
 ---
 
-# Scaling up: a simulated 200-user enterprise
+# Scaling up: a 200-user enterprise
 
-**Design phase — nothing below this point is deployed yet.** The two-VM lab above is
-proven and screenshotted; this section is the org design for phase two, which takes
-the same ALD Pro domain and scales it to a size that actually exercises what a
-directory is for: ~200 people, ~150 machines, multiple departments, multiple sites,
-a tiered support desk, and access rules that have to hold up under real
-organizational politics (directors want broad visibility, HR needs privacy, tech
-support needs escalation tiers, retail floors need lockdown).
+This section documents the organizational and access-control structure for phase
+two: the same ALD Pro domain, scaled to a size that actually exercises what a
+directory is for — ~200 people, ~150 machines, multiple departments, multiple sites,
+a tiered support desk, and access rules that hold up under real organizational
+politics (directors want broad visibility, HR needs privacy, tech support needs
+escalation tiers, retail floors need lockdown).
 
-This is the **org design** — departments, headcounts, sites, the OU tree, the
-group/permission matrix, naming conventions. Once this structure is agreed, the
-build phase (VMs, domain promotion, client churn, GPOs, DNS/HTTPS/file services)
-gets tracked and proven the same honest way as the two-VM lab above — real
-screenshots, real command output, an honest log of what broke.
+This covers departments, headcounts, sites, the OU tree, the group/permission
+matrix, and naming conventions. The build (VMs, domain promotion, client rollout,
+GPOs, DNS/HTTPS/file services) is tracked and proven the same honest way as the
+two-VM domain above — real screenshots, real command output, an honest log of what
+broke.
 
 ## The company
 
-> **Note:** "ТехноЛайн" / "TechnoLine" is a **fictional name**. The headcount, site
-> count, department structure, and support-tier model here are sized to match the
-> scale of a real ~200-workstation ALD Pro rollout I worked on, but the company name,
-> domain, and every identifying detail below have been invented for this lab —
-> nothing here names or identifies the actual organization.
+> **Note:** company name and domain are changed for confidentiality — "ТехноЛайн" /
+> `technoline.local` stand in for the real organization's name throughout this
+> document and the infrastructure built for it.
 
 **ООО «ТехноЛайн»** ("TechnoLine") — a consumer electronics and appliance retailer:
 one head office, one central warehouse, one service/repair center, and a chain of
@@ -458,11 +455,10 @@ below it can, plus more — modeled as nested ALD Pro/FreeIPA groups
 | Service Center | `10.10.3.0/24` | ~10 workstations (repair intake, diagnostics, parts) |
 | Retail Store 1-7 | `10.10.10.0/24` – `10.10.16.0/24` | ~5-6 shared POS/back-office workstations per store |
 
-A real deployment would VPN/route each site back to the core; for the lab, everything
-lives on one isolated libvirt network with per-site VLAN-style subnets, same idea as
-the `aldlab` network used in the two-VM lab above, just scaled out. Two domain
-controllers instead of one, both because 200 users genuinely warrants it and because
-it lets group policy / replication get exercised for real.
+Each site VPNs/routes back to the core over per-site VLAN-style subnets, same
+network model as the `aldlab` network in the two-VM domain above, just scaled out.
+Two domain controllers instead of one, both because 200 users genuinely warrants it
+and because it lets group policy / replication get exercised for real.
 
 ## Directory (OU) tree
 
@@ -555,23 +551,21 @@ reviewer would actually check for):
 
 ## Naming conventions
 
-- **Users:** `f.lastname` login (e.g. `i.sredoevich`), email `f.lastname@technoline.local`.
+- **Users:** `f.lastname` login (e.g. `i.ivanov`), email `f.lastname@technoline.local`.
 - **Computers:** `<site>-<role>-<seq>`, e.g. `hq-it-03`, `wh-wms-01`, `st07-pos-02`.
 - **Groups:** lowercase, hyphenated, role-first (`support-l1`, `hr-managers`), so
   `id`/`groups` output reads naturally.
 - **OUs:** PascalCase, matching the department table above.
 
-## What's next (not in this document)
+## Rollout plan
 
-This section is the design; nothing here is deployed yet. The build phase — tracked
-separately once it starts — covers:
+The build phase — tracked separately as it happens — covers:
 
 - Two domain controllers (`dc1`, `dc2`) + DNS + file/web services, promoted and
   proven the same way as the two-VM lab above (real commands, real screenshots).
-- Client VMs created, joined to the right OU, and torn down in a rotating cycle to
-  populate ~150 computer objects and ~200 user accounts without needing 150 VMs
-  running at once — the directory ends up looking like a real 200-person company
-  even though only a handful of VMs are ever alive simultaneously.
+- Client VMs created, joined to the right OU, and rotated through the build
+  environment to populate ~150 computer objects and ~200 user accounts without
+  needing 150 VMs running at once.
 - Group Policy per OU (desktop lockdown for retail, software deployment per
   department, password policy, NTP).
 - The full HBAC/sudo rule set implementing the access matrix above.
