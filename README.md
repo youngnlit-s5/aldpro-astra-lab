@@ -24,8 +24,6 @@ on top. Everything here maps directly onto the domain migrations I run day to da
 | **Management** | ALD Pro web portal ("Портал управления"), `https://ald-dc.lab.local` |
 | **Access control** | Groups, sudo rules, HBAC rules (FreeIPA `sudorule`/`hbacrule` under the hood) |
 
-![ALD Pro portal — dashboard after Kerberos/password login](docs/screenshots/aldpro-portal-dashboard.png)
-
 ## ALD Pro ↔ Microsoft AD mapping
 
 | ALD Pro (this lab) | Microsoft AD equivalent | Notes |
@@ -94,11 +92,72 @@ prove access control actually works).
 | Check | Evidence |
 |---|---|
 | Domain controller up (LDAP/KDC/DNS/portal) | [`docs/logs/aldproctl-status.txt`](docs/logs/aldproctl-status.txt) |
-| Client joined, domain identity resolves | `id i.sredoevich` → real domain UID/GID, [screenshot](docs/screenshots/domain-login-id-klist.png) |
-| Kerberos SSO works | `klist` shows a real `krbtgt`+`ldap` ticket, same screenshot |
-| Sudo rule fires for an allowed user | `sudo -l` → `(root) ALL`, [screenshot](docs/screenshots/sudo-rule-works.png) |
-| Disallowed user is denied, not just un-sudo'd | SSH connection is closed at the PAM/HBAC layer before a shell exists, [screenshot](docs/screenshots/login-denied-helpdesk.png), [`auth.log`](docs/logs/login-deny-authlog.txt) |
-| Portal reflects the same objects | [users](docs/screenshots/aldpro-portal-users.png), [groups](docs/screenshots/aldpro-portal-groups.png), [computers](docs/screenshots/aldpro-portal-computers.png), [sudo rules](docs/screenshots/aldpro-portal-sudo-rules.png) |
+| Client joined, domain identity resolves | `id i.sredoevich` → real domain UID/GID |
+| Kerberos SSO works | `klist` shows a real `krbtgt`+`ldap` ticket |
+| Sudo rule fires for an allowed user | `sudo -l` → `(root) ALL` |
+| Disallowed user is denied, not just un-sudo'd | SSH connection is closed at the PAM/HBAC layer before a shell exists, [`auth.log`](docs/logs/login-deny-authlog.txt) |
+
+All screenshots below are real captures off the running VMs — the portal ones via
+headless Chromium driven over the DevTools protocol (real browser, real TLS handshake,
+real login), the terminal ones off an actual SSH session into `ald-cl1`. None of it is
+staged. (The portal UI is Russian-only in this ALD Pro 3.0.0 build — see the
+["can the portal run in English?"](#can-the-portal-run-in-english) note below.)
+
+### Web portal
+
+![Login page](docs/screenshots/aldpro-portal-login.png)
+*Login page — `https://ald-dc.lab.local`, username/password or Kerberos SSO.*
+
+![Dashboard after login](docs/screenshots/aldpro-portal-dashboard.png)
+*Main dashboard right after a successful login ("Авторизация прошла успешно").*
+
+![Users list](docs/screenshots/aldpro-portal-users.png)
+*Users — `admin`, `i.sredoevich` (developers), `m.ivanova` (helpdesk), all Active.*
+
+![Groups list](docs/screenshots/aldpro-portal-groups.png)
+*Groups — `developers` and `helpdesk` alongside the built-in FreeIPA/ALD Pro groups.*
+
+![Computers list](docs/screenshots/aldpro-portal-computers.png)
+*Computers — both `ald-dc` and `ald-cl1` registered with their real lab IPs, proof the
+client join actually reached the directory.*
+
+![Sudo rules](docs/screenshots/aldpro-portal-sudo-rules.png)
+*Sudo rule `allow-developers-full`, enabled.*
+
+![HBAC rules](docs/screenshots/aldpro-portal-hbac-rules.png)
+*HBAC access rules — the `allow_all` default is disabled so `allow_developers` actually
+governs who gets in.*
+
+### Terminal — proof it works end to end
+
+![id and klist as a domain user](docs/screenshots/domain-login-id-klist.png)
+*Real SSH login as `i.sredoevich`: forced password change on first login (FreeIPA
+default), `id` resolving domain UID/GID/group via sssd, `klist` showing a real
+Kerberos ticket obtained transparently at login.*
+
+![sudo rule firing](docs/screenshots/sudo-rule-works.png)
+*`sudo -l` shows the actual rule from the portal (`(root) ALL`), `sudo whoami` returns
+`root`.*
+
+![login denied for a user outside HBAC](docs/screenshots/login-denied-helpdesk.png)
+*`m.ivanova` (helpdesk, not covered by the HBAC rule) enters the correct password and
+the connection is simply closed — denied at the PAM/account phase, before a shell ever
+exists.*
+
+### Can the portal run in English?
+
+Short answer: not in this build, at least not through anything user-facing. English
+translation files genuinely exist on disk for every module
+(`/opt/rbta/aldpro/mp/ui/app/*/locales/en/*.json`), and the frontend uses `i18next`
+with the standard `localStorage.i18nextLng` key — but on every real page load the app
+resets that key back to `"ru"` regardless of what's stored beforehand, a `?lng=en`
+query string, or the browser's own `navigator.language` (which was already `en-US` in
+the headless Chromium used for these screenshots). There's no language item in the
+header icons either — the four icons are a DC picker, "your user" (opens your own
+profile card), light/dark theme, and help. Nothing in the user's LDAP record
+(`ipa user-show admin --all`) carries a locale attribute either. So the English
+strings are bundled in the product but the switch isn't wired up anywhere I could
+find — the portal is effectively Russian-only in practice.
 
 ## Why this matters
 
