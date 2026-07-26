@@ -170,149 +170,159 @@ an honest log of what broke along the way and how it got fixed (below).
 
 ---
 
-# Журнал развёртывания
+# Deployment log
 
-Подробные заметки о том, как этот стенд разворачивался на реальных VM: preseed
-несколько раз ломался на диалогах, которых нет в стандартном Debian preseed, сама
-утилита `aldpro-server-install` падала пять раз подряд на разных шагах из-за
-внутренней гонки, а графический `aldpro-client-installer` оказался неработоспособен
-без реального экрана. Ничего из этого не было видно при простом чтении документации —
-только при реальном запуске.
+Detailed notes on standing this up on real VMs: preseed broke on dialogs that don't
+exist in a standard Debian preseed several times over, `aldpro-server-install` itself
+failed five times in a row at different steps because of an internal race condition,
+and the graphical `aldpro-client-installer` turned out to be unusable without a real
+screen. None of this was visible from just reading the documentation — only from
+actually running it.
 
-## 1. Preseed-автоустановка Astra Linux SE 1.7.7 — восемь багов подряд
+## 1. Preseed-based unattended install of Astra Linux SE 1.7.7 — eight bugs in a row
 
-Инсталлятор Astra — классический debian-installer (isolinux + `install.amd/{vmlinuz,
-initrd.gz}`, пункт меню `Automated install` с `auto=true priority=critical`). Пример
-preseed из документации ALD Pro (Часть 2, «Roles and site services → Automation → Boot
-profiles → Preseed») рабочий как база, но рассчитан на PXE-сценарий с полностью сетевым
-debootstrap. У нас — статический IP без DHCP на момент первой загрузки, плюс
-подключённый ISO. Вот все восемь багов, каждый следующий обнаруживался только после
-фикса предыдущего:
+Astra's installer is a classic debian-installer (isolinux + `install.amd/{vmlinuz,
+initrd.gz}`, an `Automated install` menu entry with `auto=true priority=critical`).
+The preseed example in the ALD Pro documentation (Part 2, "Roles and site services →
+Automation → Boot profiles → Preseed") works as a base, but it's built for a PXE
+scenario with a fully network-based debootstrap. Here I had a static IP with no DHCP
+at first boot, plus an attached ISO. Here are all eight bugs, each one only surfacing
+once the previous one was fixed:
 
-1. **`astra-license/license`** — лицензионное соглашение Astra Linux. Ключа в обычном
-   Debian preseed нет — Astra-специфичный, нашёл разбором .udeb-пакета (`ar x
-   astra-license_*.udeb`, файл `debian/templates`).
-2. **`cdrom-detect/load_media`** — "No common CD-ROM drive was detected". Возникло
-   потому, что `--location` в virt-install указывал на смонтированную директорию, а не
-   на файл .iso — в этом случае virt-install не подключает ISO как виртуальный CD.
-   Фикс: `--location <path>.iso` вместо смонтированной директории.
-3. **Диалог выбора языка** — всплывает раньше, чем скачивается сетевой preseed.cfg
-   (сеть на этот момент ещё не поднята). Фикс — `locale=en_US.UTF-8` прямо в kernel
-   cmdline (`--extra-args`), а не в preseed-файле.
-4. **`debootstrap` по сети падает с exit 1** через `repository-base`. Переключился на
-   официально документированный офлайн-путь: раз ISO уже физически подключен, базовая
-   система ставится прямо с CD (`apt-setup/cdrom/set-first boolean true`), а сетевые
-   репозитории ALD Pro подключаются уже после загрузки ОС через SSH.
-5. **`apt-setup/cdrom/set-double`** (default `true`, не был задан явно) — после
-   успешного debootstrap с CD инсталлятор переспрашивает "Scan another CD or DVD?" и
-   зависает. Ключ нашёл разбором `apt-cdrom-setup_*.udeb`.
-6. **GRUB-пароль** — забытый в первой версии preseed `grub-installer/password`.
-7. **`late_command` не может использовать `wget`** — в базовой системе, установленной
-   только с CD (без сетевого debootstrap), `wget` не входит в набор пакетов по
-   умолчанию. Установщик показывал общую ошибку "Failed to run preseeded command" без
-   объяснения причины. Фикс — переписать все postinstall-шаги (SSH-доступ, `/etc/hosts`,
-   отключение NetworkManager) через `in-target bash -c '...'` без внешних зависимостей.
-8. **Разовый глюк чтения виртуального CD** ("Debootstrap warning: ... was corrupt").
-   Проверка md5sum файла на самом ISO подтвердила, что файл не повреждён (совпадает с
-   `md5sum.txt` на диске) — это транзиентный сбой эмуляции IDE CD-ROM в QEMU, не
-   проблема дистрибутива. Serial-консоль была настроена только на запись в файл (без
-   интерактивного pty), поэтому нажать "Continue" было нечем — просто повторил
-   установку с нуля, глюк не воспроизвёлся.
+1. **`astra-license/license`** — the Astra Linux end-user license agreement. There's
+   no key for this in a normal Debian preseed — it's Astra-specific. Found it by
+   unpacking the .udeb package (`ar x astra-license_*.udeb`, the `debian/templates`
+   file).
+2. **`cdrom-detect/load_media`** — "No common CD-ROM drive was detected." This
+   happened because `--location` in virt-install pointed at a mounted directory
+   instead of the .iso file itself — in that case virt-install doesn't attach the ISO
+   as a virtual CD at all. Fix: `--location <path>.iso` instead of a mounted
+   directory.
+3. **The language-selection dialog** — pops up before the network preseed.cfg is even
+   fetched (the network isn't up yet at that point). Fix: `locale=en_US.UTF-8` right
+   on the kernel cmdline (`--extra-args`), not inside the preseed file.
+4. **`debootstrap` over the network fails with exit 1** against `repository-base`.
+   Switched to the officially documented offline path instead: since the ISO is
+   already physically attached, the base system installs straight from the CD
+   (`apt-setup/cdrom/set-first boolean true`), and the ALD Pro network repositories
+   get added after the OS boots, over SSH.
+5. **`apt-setup/cdrom/set-double`** (defaults to `true`, and I hadn't set it
+   explicitly) — after a successful CD-based debootstrap, the installer asks "Scan
+   another CD or DVD?" and hangs there. Found the key by unpacking
+   `apt-cdrom-setup_*.udeb`.
+6. **GRUB password** — forgot `grub-installer/password` in the first version of the
+   preseed.
+7. **`late_command` can't use `wget`** — on a base system installed only from CD
+   (no network debootstrap), `wget` isn't part of the default package set. The
+   installer just showed a generic "Failed to run preseeded command" with no
+   explanation. Fix: rewrite every postinstall step (SSH access, `/etc/hosts`,
+   disabling NetworkManager) as `in-target bash -c '...'` with no external
+   dependencies.
+8. **A one-off virtual CD read glitch** ("Debootstrap warning: ... was corrupt").
+   Checking the file's md5sum against the ISO's own `md5sum.txt` confirmed the file
+   itself wasn't corrupt — this was a transient IDE CD-ROM emulation hiccup in QEMU,
+   not a problem with the distro. The serial console was configured write-only (no
+   interactive pty), so there was nothing to click "Continue" with — just reran the
+   install from scratch, and the glitch didn't come back.
 
-Отдельно: `late_command` пытался вызвать `in-target hostnamectl set-hostname
-ald-dc.lab.local` — команда падала, потому что `in-target` это просто chroot, а
-`hostnamectl` обращается к `systemd-hostnamed` через D-Bus, которого в chroot нет.
-Фикс — писать `/etc/hostname` напрямую (`printf ... > /etc/hostname`).
+Separately: `late_command` tried to call `in-target hostnamectl set-hostname
+ald-dc.lab.local` — that failed, because `in-target` is just a chroot, and
+`hostnamectl` talks to `systemd-hostnamed` over D-Bus, which doesn't exist in a
+chroot. Fix: write `/etc/hostname` directly (`printf ... > /etc/hostname`).
 
-Диагностика "молча работает" vs "реально зависло" на текстовом serial-выводе
-инсталлятора (ANSI/VT100 escape-последовательности в файле лога) — рабочий способ
-восстановить текущий экран:
+Telling "quietly working" apart from "actually hung" on the installer's raw serial
+text output (ANSI/VT100 escape sequences dumped into a log file) — the way that
+actually works is to replay the log through a real terminal emulator:
 
 ```bash
 tmux new-session -d -s astra -x 80 -y 24 "cat ald-dc-console.log; sleep 3600"
 tmux capture-pane -t astra -p
 ```
 
-## 2. Гонка внутри `aldpro-server-install` — систематическая проблема продукта
+## 2. A race condition inside `aldpro-server-install` — a systemic product issue
 
-После чистой установки ОС, поднятия уровня защищённости до "Смоленск" и подключения
-репозиториев команда `aldpro-server-install -d lab.local -n ald-dc --ip
-192.168.150.10 --setup_gc --setup_syncer --no-reboot` **падала пять раз подряд**,
-каждый раз на другом шаге, с одной и той же ошибкой:
+After a clean OS install, raising the security level to "Смоленск" (max), and wiring
+up the repositories, the command `aldpro-server-install -d lab.local -n ald-dc --ip
+192.168.150.10 --setup_gc --setup_syncer --no-reboot` **failed five times in a row**,
+each time at a different step, with the same error:
 
 ```
 Exception: Произошла ошибка. Превышено максимальное количество попыток.
 Пожалуйста, попробуйте выполнить команду повторно.
 ```
+("An error occurred. Maximum number of attempts exceeded. Please retry the command.")
 
-Разброс: `saltutil.sync_all`, `grains.set is_first_dc`, зависание на `grains.delkey
-is_first_dc` (35+ минут на 100% CPU — реальный hang, вручную та же команда занимает
-1-2 секунды), `state.apply utils.dc_passwords`. При этом **каждый** упавший шаг,
-повторённый вручную сразу после сбоя, отрабатывал за секунды без единой ошибки. Вывод:
-дело не в конкретном шаге, а в том, что `aldpro-server-install` дёргает
-`aldpro-salt-call` подряд без паузы, и standalone salt-minion не всегда успевает
-освободить локальную блокировку между вызовами. Собственный обработчик ошибок скрипта
-тоже может зависнуть — при попытке залогировать сбой в LDAP через `send_log_to_ldap`
-он стучится в SSSD/D-Bus, которого на этом этапе установки ещё физически нет.
+The failures landed on `saltutil.sync_all`, `grains.set is_first_dc`, a hang on
+`grains.delkey is_first_dc` (35+ minutes at 100% CPU — a genuine hang, not just slow:
+the same command runs in 1-2 seconds by hand), and `state.apply utils.dc_passwords`.
+And **every** failed step, rerun by hand right after the failure, completed in
+seconds with no error at all. Conclusion: it's not any one step — `aldpro-server-install`
+fires `aldpro-salt-call` invocations back to back with no pause, and the standalone
+salt-minion doesn't always release its local lock in time between calls. Even the
+script's own error handler can hang: when it tries to log the failure to LDAP via
+`send_log_to_ldap`, it reaches for SSSD/D-Bus, which doesn't physically exist yet at
+this stage of the install.
 
-Шестая попытка закончилась настоящим **segfault** интерпретатора Python 3.7 сразу в
-нескольких celery-воркерах (`dmesg`: `segfault at ... in python3.7`) — не OOM
-(свободной памяти хватало), а нехватка ядер под параллельной нагрузкой на 2 vCPU.
-**Увеличение до 4 vCPU сняло проблему полностью** — седьмая попытка отработала от
-начала до конца без единого сбоя (~10 минут: FreeIPA/Kerberos/DNS, портал ALD Pro,
-Global Catalog).
+The sixth attempt ended in an actual Python 3.7 interpreter **segfault**, hitting
+several celery workers at once (`dmesg`: `segfault at ... in python3.7`) — not OOM
+(there was plenty of free memory), but not enough cores under parallel load on 2
+vCPUs. **Bumping the DC to 4 vCPUs fixed it completely** — the seventh attempt ran
+start to finish with zero failures (~10 minutes: FreeIPA/Kerberos/DNS, the ALD Pro
+portal, Global Catalog).
 
-Побочная находка: `aldproctl status` падал с `IndexError`, потому что
-`socket.gethostname()` (сырой `hostname`, не `hostname -f`) возвращал только короткое
-имя. Preseed через `netcfg/get_hostname` + `netcfg/get_domain` пишет в `/etc/hostname`
-только короткое имя — а документация ALD Pro (2.1.1.3) прямо требует `hostnamectl
-set-hostname <FQDN>`. Фикс — писать полное имя в `/etc/hostname` напрямую.
+Side finding: `aldproctl status` crashed with an `IndexError`, because
+`socket.gethostname()` (the raw `hostname`, not `hostname -f`) only returned the
+short name. Preseed via `netcfg/get_hostname` + `netcfg/get_domain` only writes the
+short name into `/etc/hostname` — but the ALD Pro documentation (2.1.1.3) explicitly
+requires `hostnamectl set-hostname <FQDN>`. Fix: write the full FQDN into
+`/etc/hostname` directly.
 
-**Рабочая тактика, которая в итоге всё спасла:** снять offline-снапшот диска сразу
-после установки ОС + подключения репозиториев + установки пакетов ALD Pro (до
-`aldpro-server-install`), и просто откатываться на него при сбое вместо ручной чистки
-состояния на лету:
+**The tactic that actually saved the day:** take an offline disk snapshot right after
+the OS install, wiring up the repositories, and installing the ALD Pro packages
+(before `aldpro-server-install`), and just roll back to it on failure instead of
+manually cleaning up state on the fly:
 
 ```bash
 virsh snapshot-create-as ald-dc pre-server-install --disk-only --atomic
-# при сбое — откат и повтор:
+# on failure -- roll back and retry:
 virsh destroy ald-dc
 rm /var/lib/libvirt/images/ald-dc.pre-server-install
 qemu-img create -f qcow2 -b ald-dc.qcow2 -F qcow2 ald-dc.pre-server-install
 virsh start ald-dc
 ```
 
-## 3. Графический `aldpro-client-installer` не работает без настоящего экрана
+## 3. The graphical `aldpro-client-installer` doesn't work without a real screen
 
-Документация приводит его как "способ через командную строку", но бинарник — это
-PyQt5/PyInstaller-приложение, которому *всегда* нужна Qt-платформа:
+The documentation presents it as a "command-line method," but the binary is a
+PyQt5/PyInstaller app that *always* needs a Qt platform:
 
-- Без `DISPLAY` и без `--gui` падает: `qt.qpa.plugin: Could not load the Qt platform
-  plugin "xcb"`.
-- С `QT_QPA_PLATFORM=offscreen` — не падает, но виснет насмерть: единственный открытый
-  файловый дескриптор процесса — `eventfd` (Qt-эвентлуп), ни одного сетевого
-  соединения к контроллеру домена так и не открывается.
-- С реальным `Xvfb` — на экране просто пустая форма: поля "Наименование домена",
-  "Учётная запись", "Пароль" не заполняются флагами `--domain/--account/--password`
-  вообще. Значения командной строки в этой сборке 3.0.0 в GUI-режим не пробрасываются.
+- Without `DISPLAY` and without `--gui` it just crashes: `qt.qpa.plugin: Could not
+  load the Qt platform plugin "xcb"`.
+- With `QT_QPA_PLATFORM=offscreen` it doesn't crash, but it hangs dead: the process's
+  only open file descriptor is an `eventfd` (the Qt event loop) — it never opens a
+  single network connection to the domain controller.
+- With a real `Xvfb` — the screen just shows an empty form: the "Domain name",
+  "Account", and "Password" fields never get filled in from
+  `--domain`/`--account`/`--password`. Command-line values simply aren't wired into
+  GUI mode in this 3.0.0 build.
 
-Решение — обойти GUI-обёртку и использовать нижележащий CLI напрямую,
-`astra-freeipa-client` (тот же инструмент, которым документация описывает вывод
-компьютера из домена через `-U`):
+The fix is to skip the GUI wrapper entirely and use the underlying CLI directly,
+`astra-freeipa-client` (the same tool the documentation uses for un-enrolling a
+computer, via `-U`):
 
 ```bash
-sudo astra-freeipa-client -d lab.local -u admin -p 'ПАРОЛЬ' -y
+sudo astra-freeipa-client -d lab.local -u admin -p 'PASSWORD' -y
 ```
 
-Отработал с первого раза: получил CA-сертификат, зарегистрировал SSH-ключи хоста,
-настроил SSSD/Kerberos/PAM — `The ipa-client-install command was successful`.
+Worked on the first try: got the CA certificate, registered the host's SSH keys, and
+configured SSSD/Kerberos/PAM — `The ipa-client-install command was successful`.
 
-## 4. Баг `ipa hbactest` в ALD Pro 3.0.0 на обычных локальных пользователях
+## 4. `ipa hbactest` is broken in ALD Pro 3.0.0 for plain local users
 
-После создания HBAC-правила и отключения дефолтного `allow_all` (иначе правило ни на
-что не влияет) команда `ipa hbactest --user=i.sredoevich --host=... --service=sshd`
-вернула `ipa: ERROR: an internal error has occurred`. В `/var/log/apache2/error.log`
-нашёлся traceback:
+After creating an HBAC rule and disabling the default `allow_all` (otherwise the rule
+has no effect at all), `ipa hbactest --user=i.sredoevich --host=... --service=sshd`
+came back with `ipa: ERROR: an internal error has occurred`. The full traceback showed
+up in `/var/log/apache2/error.log`:
 
 ```
 File ".../ipaserver/plugins/hbactest.py", line 394, in execute
@@ -322,29 +332,30 @@ File ".../ipaserver/dcerpc.py", line 89, in is_sid_valid
 ValueError: Unable to parse string: 'i.sredoevich'
 ```
 
-`hbactest` в этой сборке безусловно пытается распарсить пользователя как Windows SID
-(код для доверенных доменов MS AD) и падает вместо того, чтобы сначала проверить,
-похожа ли строка на SID вообще. Обходной путь — не полагаться на symulation-тест, а
-доказывать allow/deny реальными попытками входа (что и так требовалось).
+`hbactest` in this build unconditionally tries to parse the given user as a Windows
+SID (code meant for MS AD trust scenarios) and crashes instead of first checking
+whether the string even looks like a SID. The workaround is to not rely on the
+simulation test at all, and instead prove allow/deny with real login attempts (which
+was already required anyway).
 
-## 5. HBAC разрешает вход, но не `sudo` — это два разных сервиса
+## 5. HBAC allows login but not `sudo` — they're two separate PAM services
 
-После настройки sudo-правила `sudo -l` для разрешённого пользователя падал с `sudo:
-PAM account management error: Permission denied` — не отказ по самому sudo-правилу, а
-блокировка HBAC на уровне PAM: правило `allow_developers` разрешало сервисы
-`sshd`/`login`, но не `sudo`. У SSSD HBAC гейтит *каждый* PAM-сервис отдельно,
-включая `sudo`. Фикс:
+After setting up the sudo rule, `sudo -l` for an allowed user failed with `sudo: PAM
+account management error: Permission denied` — not a denial from the sudo rule
+itself, but an HBAC block at the PAM layer: the `allow_developers` rule allowed the
+`sshd`/`login` services, but not `sudo`. SSSD's HBAC gates *every* PAM service
+separately, `sudo` included. Fix:
 
 ```bash
 ipa hbacrule-add-service allow_developers --hbacsvcs=sudo
 ipa hbacrule-add-service allow_developers --hbacsvcs=sudo-i
 ```
 
-После этого `sudo -l` показал реальное правило (`(root) ALL`), а `sudo whoami` вернул
+After that, `sudo -l` showed the real rule (`(root) ALL`), and `sudo whoami` returned
 `root`.
 
-## Итог
+## Bottom line
 
-Полный список того, что в итоге доказано вживую, — в разделе
-[«Proof, not just claims»](#proof-not-just-claims) выше. Каждая строчка там — это
-реальная команда, выполненная на реальной паре VM, а не текст из документации.
+The full list of what's actually proven live is in the ["Proof, not just claims"](#proof-not-just-claims)
+section above. Every line there is a real command run on a real pair of VMs, not text
+copied from the documentation.
