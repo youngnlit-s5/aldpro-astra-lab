@@ -1,9 +1,17 @@
-# aldpro-astra-lab
+# aldpro-enterprise-project
 
 A real **ALD Pro 3.0.0** domain — directory service, Kerberos KDC, integrated DNS and
 the web management portal — deployed on **Astra Linux Special Edition 1.7.7**, with a
 client machine joined to the domain, domain users, groups, sudo and HBAC rules all
-provisioned and *proven working*, not just installed.
+provisioned and *proven working*, not just installed. That two-VM proof of concept is
+documented below and is what's actually deployed and screenshotted today.
+
+The project's second phase — an [org design for a simulated ~200-user, ~150-machine
+company](#scaling-up-a-simulated-200-user-enterprise) running the same stack — is
+further down this document. It builds on the exact same domain and the same lessons
+learned in the [deployment log](#deployment-log), scaled up to the size where group
+policy, tiered support, and departmental access rules actually have to hold up under
+real organizational politics.
 
 This is the production counterpart to [`freeipa-lab`](https://github.com/youngnlit-s5/freeipa-lab):
 that repo is the open-source twin built on FreeIPA; this one is the actual commercial
@@ -48,7 +56,7 @@ of production hardware.
 ## Layout
 
 ```
-aldpro-astra-lab/
+aldpro-enterprise-project/
 ├── preseed/                    # Astra unattended-install answer files (not the ALD
 │                                # Pro distro itself -- see Getting the software below).
 │                                # Passwords are redacted to CHANGE_ME_* placeholders.
@@ -359,3 +367,213 @@ After that, `sudo -l` showed the real rule (`(root) ALL`), and `sudo whoami` ret
 The full list of what's actually proven live is in the ["Proof, not just claims"](#proof-not-just-claims)
 section above. Every line there is a real command run on a real pair of VMs, not text
 copied from the documentation.
+
+---
+
+# Scaling up: a simulated 200-user enterprise
+
+**Design phase — nothing below this point is deployed yet.** The two-VM lab above is
+proven and screenshotted; this section is the org design for phase two, which takes
+the same ALD Pro domain and scales it to a size that actually exercises what a
+directory is for: ~200 people, ~150 machines, multiple departments, multiple sites,
+a tiered support desk, and access rules that have to hold up under real
+organizational politics (directors want broad visibility, HR needs privacy, tech
+support needs escalation tiers, retail floors need lockdown).
+
+This is the **org design** — departments, headcounts, sites, the OU tree, the
+group/permission matrix, naming conventions. Once this structure is agreed, the
+build phase (VMs, domain promotion, client churn, GPOs, DNS/HTTPS/file services)
+gets tracked and proven the same honest way as the two-VM lab above — real
+screenshots, real command output, an honest log of what broke.
+
+## The company
+
+> **Note:** "ТехноЛайн" / "TechnoLine" is a **fictional name**. The headcount, site
+> count, department structure, and support-tier model here are sized to match the
+> scale of a real ~200-workstation ALD Pro rollout I worked on, but the company name,
+> domain, and every identifying detail below have been invented for this lab —
+> nothing here names or identifies the actual organization.
+
+**ООО «ТехноЛайн»** ("TechnoLine") — a consumer electronics and appliance retailer:
+one head office, one central warehouse, one service/repair center, and a chain of
+retail stores across several cities.
+
+| Metric | Value |
+|---|---|
+| Domain | `technoline.local` (NetBIOS `TECHNOLINE`) |
+| Employees | ~200 |
+| Workstations/servers | ~150 |
+| Sites | HQ + Warehouse + Service Center + 7 retail stores (10 sites total) |
+| Email convention | `f.lastname@technoline.local` (first initial + dot + last name) |
+
+**Why 150 machines for 200 people, not 1:1:** retail floor staff and warehouse
+pickers work in shifts off shared POS terminals and handheld/kiosk stations rather
+than personal desktops. Every office role (HQ, warehouse office, service center
+back-office) gets its own machine; retail stores get 4-6 shared workstations each
+regardless of headcount. That's also a realistic reason to have host-based access
+control (HBAC) do real work: the same physical machine is used by different people
+on different shifts, so *the directory*, not the machine, is what decides what a
+given login can do.
+
+## Departments and headcount
+
+| Department (RU) | Department (EN) | Site | Headcount |
+|---|---|---|---|
+| Дирекция | Executive Management | HQ | 5 |
+| ИТ-отдел | IT Department | HQ | 10 |
+| Отдел продаж (корп.) | Corporate/B2B Sales | HQ | 10 |
+| Маркетинг | Marketing | HQ | 6 |
+| Отдел закупок | Procurement | HQ | 8 |
+| Бухгалтерия и финансы | Accounting & Finance | HQ | 12 |
+| Отдел кадров | HR | HQ | 6 |
+| Юридический отдел | Legal | HQ | 4 |
+| Служба безопасности | Security | HQ | 6 |
+| АХО | Facilities/Admin-Economic | HQ | 8 |
+| Склад и логистика | Warehouse & Logistics | Warehouse | 25 |
+| Сервисный центр | Service Center | Service Center | 15 |
+| Розничная сеть (7 магазинов) | Retail (7 stores) | Stores 1-7 | ~84 (≈12/store) |
+| **Total** | | | **~199** |
+
+### IT department breakdown (this is the group that gets modeled in the most detail)
+
+| Role (RU) | Role (EN) | Count | Reports to |
+|---|---|---|---|
+| ИТ-директор | IT Director | 1 | Генеральный директор |
+| Системный администратор | Systems Administrator (domain admin) | 2 | IT Director |
+| Инженер 3-й линии | Support Engineer — Line 3 | 2 | IT Director |
+| Специалист 2-й линии | Support Specialist — Line 2 | 2 | Line 3 lead |
+| Специалист 1-й линии | Support Specialist — Line 1 (helpdesk) | 3 | Line 2 lead |
+
+Escalation model: **L1 → L2 → L3 → Sysadmin**. Each tier can do everything the tier
+below it can, plus more — modeled as nested ALD Pro/FreeIPA groups
+(`support-l3` ⊃ `support-l2` ⊃ `support-l1`), not copy-pasted rule sets.
+
+## Sites and network plan
+
+| Site | Subnet (planned) | Role |
+|---|---|---|
+| Core / servers | `10.10.0.0/24` | DC1 (primary), DC2 (backup/replica), DNS, file server, web/portal |
+| HQ | `10.10.1.0/24` | ~65 workstations (management, IT, sales, marketing, procurement, finance, HR, legal, security, facilities) |
+| Warehouse | `10.10.2.0/24` | ~15 workstations + handheld/WMS terminals |
+| Service Center | `10.10.3.0/24` | ~10 workstations (repair intake, diagnostics, parts) |
+| Retail Store 1-7 | `10.10.10.0/24` – `10.10.16.0/24` | ~5-6 shared POS/back-office workstations per store |
+
+A real deployment would VPN/route each site back to the core; for the lab, everything
+lives on one isolated libvirt network with per-site VLAN-style subnets, same idea as
+the `aldlab` network used in the two-VM lab above, just scaled out. Two domain
+controllers instead of one, both because 200 users genuinely warrants it and because
+it lets group policy / replication get exercised for real.
+
+## Directory (OU) tree
+
+```
+dc=technoline,dc=local
+└── ou=TechnoLine
+    ├── ou=HQ
+    │   ├── ou=Management            (Дирекция)
+    │   ├── ou=IT
+    │   │   ├── ou=SysAdmins
+    │   │   └── ou=Support
+    │   │       ├── ou=Line1
+    │   │       ├── ou=Line2
+    │   │       └── ou=Line3
+    │   ├── ou=Sales
+    │   ├── ou=Marketing
+    │   ├── ou=Procurement
+    │   ├── ou=Finance
+    │   ├── ou=HR
+    │   ├── ou=Legal
+    │   ├── ou=Security
+    │   └── ou=Facilities
+    ├── ou=Warehouse
+    ├── ou=ServiceCenter
+    ├── ou=Retail
+    │   ├── ou=Store-01 ... ou=Store-07
+    ├── ou=Computers
+    │   ├── ou=HQ
+    │   ├── ou=Warehouse
+    │   ├── ou=ServiceCenter
+    │   └── ou=Retail
+    └── ou=ServiceAccounts
+```
+
+Users live under their department OU; computers live under a parallel
+`ou=Computers` tree by site, not mixed in with user objects — that's what makes
+per-site computer-group HBAC/sudo/GPO scoping clean later (e.g. "everyone in
+`ou=Retail` gets the kiosk-lockdown GPO" without touching user objects at all).
+
+## Groups and access matrix
+
+Every row below is a real ALD Pro/FreeIPA group with actual HBAC + sudo rules behind
+it, not just a label — this table *is* the spec for the rules that get created in
+the build phase.
+
+| Group | Members | Login rights | Sudo / admin rights | Data access |
+|---|---|---|---|---|
+| `domain-admins` | 2 senior sysadmins only | Everywhere | Full `sudo` on all hosts, ALD Pro portal full control | Everything (used for admin tasks only — no daily-driver use) |
+| `it-directors` | IT Director | HQ hosts + read-only portal access everywhere | No `sudo` by default (separation of duties — approves access, doesn't grant it themself) | Read access to IT audit logs, no HR/finance data |
+| `support-l3` | Line-3 engineers | HQ + all sites (remote) | `sudo` on servers (DNS, DHCP, file/web services) *except* domain-admin actions; full local admin on any workstation | IT ticketing system, network device configs |
+| `support-l2` | Line-2 specialists (⊃ inherits L1) | HQ + all sites (remote) | Local admin on workstations (domain join/leave, software installs, printers); no server `sudo` | IT ticketing system |
+| `support-l1` | Line-1 helpdesk | HQ only | Delegated password reset + account unlock only (via FreeIPA self-service/delegation ACI, not full admin); no local admin | IT ticketing system, read-only user directory |
+| `executives` | Директор, замы | Own workstation + read access to department shares relevant to oversight (finance dir → accounting share, commercial dir → sales/CRM) | Local admin on **own** workstation only | Cross-department reporting views |
+| `hr-staff` | HR department | HQ | None | Personnel records (own department only — cannot see finance/accounting) |
+| `hr-managers` | HR lead(s), subset of `hr-staff` | HQ | None | Salary bands, hiring/termination records |
+| `finance-staff` | Accounting & Finance | HQ | None | 1C:Бухгалтерия, financial shares |
+| `sales-staff` | Corporate sales + retail sales consultants | HQ / assigned store | None | CRM / 1C:Розница, no financial or HR data |
+| `warehouse-staff` | Warehouse & Logistics | Warehouse | None | WMS, shipment tracking |
+| `service-staff` | Service Center technicians | Service Center | None | Repair ticketing, parts inventory |
+| `retail-staff` | Store sales consultants, cashiers | Assigned store only | None | POS system only; GPO-locked desktop (no Control Panel, no USB storage, kiosk shell) |
+| `store-managers` | One per store, subset of `retail-staff` | Assigned store | Local admin on that store's back-office workstation only | Store sales reports, local staff schedule |
+| `marketing-staff` | Marketing | HQ | None | Shared marketing drive, website CMS |
+| `procurement-staff` | Procurement | HQ | None | Supplier contracts, purchase orders |
+| `legal-staff` | Legal | HQ | None | Contract repository |
+| `security-staff` | Security | HQ | Read access to authentication/audit logs | Access-control and audit systems (mostly outside ALD Pro's scope) |
+| `facilities-staff` | АХО | HQ | None | Facilities shares only |
+
+Design rules this table encodes (worth stating explicitly, since they're what a
+reviewer would actually check for):
+
+- **No standing local-admin for end users**, except two narrow, deliberate
+  exceptions: executives on their own single machine, and store managers on their
+  own store's back-office machine — both scoped to exactly one host, not "admin
+  everywhere."
+- **Support tiers are additive groups, not duplicated rule sets** — `support-l3`
+  nests `support-l2` nests `support-l1`, so a Line-3 engineer is never missing a
+  Line-1 permission by accident.
+- **HR and Finance are mutually exclusive by default** — HR can't read salary
+  postings in accounting shares, Finance can't read personnel files. Any legitimate
+  cross-access (e.g. payroll) goes through a dedicated `payroll-access` group with
+  named members from both sides, not a blanket department merge.
+- **`it-directors` is deliberately not in `domain-admins`** — oversight and
+  execution are different rights. This is the same separation-of-duties point that
+  came up for real in the two-VM lab's HBAC-vs-sudo bug above (allowing login is not
+  the same grant as allowing `sudo`); here it's applied on purpose at the org level
+  instead of being discovered as a bug.
+- **Retail is the most locked-down tier** — shared machines, high staff turnover,
+  and public-facing floor space make it the highest-risk tier despite having the
+  lowest privileges, which is exactly why GPO desktop lockdown matters most there.
+
+## Naming conventions
+
+- **Users:** `f.lastname` login (e.g. `i.sredoevich`), email `f.lastname@technoline.local`.
+- **Computers:** `<site>-<role>-<seq>`, e.g. `hq-it-03`, `wh-wms-01`, `st07-pos-02`.
+- **Groups:** lowercase, hyphenated, role-first (`support-l1`, `hr-managers`), so
+  `id`/`groups` output reads naturally.
+- **OUs:** PascalCase, matching the department table above.
+
+## What's next (not in this document)
+
+This section is the design; nothing here is deployed yet. The build phase — tracked
+separately once it starts — covers:
+
+- Two domain controllers (`dc1`, `dc2`) + DNS + file/web services, promoted and
+  proven the same way as the two-VM lab above (real commands, real screenshots).
+- Client VMs created, joined to the right OU, and torn down in a rotating cycle to
+  populate ~150 computer objects and ~200 user accounts without needing 150 VMs
+  running at once — the directory ends up looking like a real 200-person company
+  even though only a handful of VMs are ever alive simultaneously.
+- Group Policy per OU (desktop lockdown for retail, software deployment per
+  department, password policy, NTP).
+- The full HBAC/sudo rule set implementing the access matrix above.
+- Verification: prove login/deny per role, prove L1 can't do what L3 can, prove HR
+  can't read Finance's share, prove a retail kiosk actually stays locked down.
